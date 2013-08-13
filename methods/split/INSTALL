@@ -1,0 +1,188 @@
+George Helffrich/U. Bristol/24 March 2005
+   http://www1.gly.bris.ac.uk/~george/gh.html
+   updated 26 Feb. 2013
+
+This collection of programs and SAC macros implements the Silver and Chan (1991)
+shear wave splitting measurement methodology.  You can also combine (stack) the
+single estimates from a station or station neighborhood group to get a joint
+estimate.  The stacking method used is Restivo and Helffrich (1999), which
+differs from Wolfe and Silver (1998) in that it delivers more pessimistic
+uncertainties (wider confidence bounds) but with a simpler methodology.  See
+the references below for details on the respective methods.
+
+The collection consists of:
+1) The measurement program (shear_grh)
+2) A SAC macro graphical user interface to the measurement program (split)
+3) A stacking program (splstacksac)
+4) A SAC macro interface to the stacking program (splitstack)
+
+You need:
+1) a Fortran compiler
+2) SAC executable and library.
+
+You also need a travel time calculator.  There are two choices:
+  1) the Kennett and Buland tau-p travel time calculator, available
+  as the program called ttimes.  See
+
+    http://www1.gly.bris.ac.uk/~george/sac-bugs.html#ttimes
+
+  for source code for ttimes if you don't already have it.
+
+  2) the Crotwell et al. Tau-P toolkit, available via
+
+    http://www.seis.sc.edu/taup/index.html
+
+There are two SAC macros of general utility used by split:
+1) ttimes - annotate trace display with predicted phase arrival times.  Not
+   restricted for use with split, but generally usable for any seismogram
+   analysis procedure in SAC.
+2) prompt - send message to terminal and ask for result.
+
+INSTALLATION INSTRUCTIONS
+
+1) cd src
+
+2) edit Makefile to indicate location of your SAC run-time libraries.  This
+   will be different on every system except for MacSAC (see
+
+   http://www1.gly.bris.ac.uk/~george/sac-bugs.html
+
+   ), where it will be in the file /usr/local/lib/libsacio.a (after the
+   Installer puts it there).  Contact your local seismology programmer guru
+   for advice.
+
+3) make FC=gfortran shear_grh splstacksac
+
+   or, if your Fortran compiler is g77,
+
+   make FC=g77 shear_grh splstacksac
+
+4) install binaries where your other seismology analysis programs live
+   (somewhere listed in your search path).  If they normally live in
+   ~george/seismo/bin, for example, then
+
+   install shear_grh ~george/seismo/bin
+   install splstacksac ~george/seismo/bin
+
+5) cd ..
+
+6) edit the SAC macros to indicate the location of the helper shell scripts.
+   A good place for these to go is in the same directory as the SAC macros --
+   that keeps the macro and its buddy together if you ever need to transport
+   them or understand how they work together better.  Edit the files splitstack
+   and ttsac and change the line reading
+
+   $default macdir .
+
+   or
+
+   $default progdir .
+
+   to wherever your SAC macros go, e.g.
+
+   $default macdir /User/seismo/sacmacro
+
+   Edit both splitstack, ttsac and split.
+
+   Next, ensure the proper travel time calculator is used.  The file is
+   ttsac.sh.  Edit the line reading "defttcalc" to make sure the proper
+   default is selected (0 for ttimes, 1 for taup).
+
+7) install the SAC macros in your SAC macro search path (see SAC's setmacro
+   command).  If they normally are in ~george/seismo/sacmacro, for example, then
+
+   install -c -m 644 split ~george/seismo/sacmacro
+   install -c -m 644 ttsac ~george/seismo/sacmacro
+   install -c -m 644 prompt ~george/seismo/sacmacro
+
+8) install the (edited) SAC macro helper shell scripts in the SAC macro
+   directory:
+
+   install -c -m 755 splitstack.sh ~george/seismo/sacmacro
+   install -c -m 755 ttsac.sh ~george/seismo/sacmacro
+
+TESTING
+
+The seismograms (SAC big-endian order)** are a test suite to show you how to use
+the stacking methodology.  Fire up SAC.  Make sure your SAC macro path is set
+properly to look for the split, ttsac and prompt macros.  Then make splitting
+measurements for these four events in the current directory:
+
+    bann.050400k.pks
+    bann.060400d.skks
+    bann.080300a.pks
+    bann.080600b.sks
+
+in SAC by issuing the commands:
+
+  m split file bann.050400k.pks comps bhe bhn bhz
+  m split file bann.060400d.skks comps bhe bhn bhz
+  m split file bann.080300a.pks comps bhe bhn bhz
+  m split file bann.080600b.sks comps bhe bhn bhz
+
+The sequence of prompts that SAC will guide you through are self-explanatory.
+(See comments about using more features of the split macro by reading comments
+at the beginning of the SAC macro file.)  This will leave four files in the
+directory with the suffix *.var.  These file names are what splstacksac uses
+to make up the joint splitting estimate.  You put these names into a file and
+then aim the splitstack macro at it.  The contents of BANN.stack already has
+the named files in it:
+
+  m splitstack file BANN.stack
+
+and you should see the answer of 80+/-7 deg. and 1.0+/-0.25 s. as the splitting
+estimate.  Lines in the splitstack input file beginning with "*" are comments
+and are ignored by SAC and the processing program.  You might use this feature
+to assess the relative importance of any particular datum to the result.
+
+See comments in the SAC macro files for split and splitstack for documentation
+on their use.
+
+**If you are not on a big-endian machine and need to convert to little-endian
+  to enable your SAC to read these files, see
+  http://www1.gly.bris.ac.uk/~george/sac-bugs.html
+
+TROUBLESHOOTING
+
+* SAC macro failures:
+1) SAC2000 has a bug in macro processing (but not SAC/BRIS) which causes
+   the some macros to fail.  In some versions, the last macro keyword on the
+   $KEYS line is not properly recognized, and ttsac or split will fail by
+   prompting you for a value for that keyword.  If you have this problem, add
+   a dummy keyword to the end of the $KEYS line, like "bugjunk"  It will never
+   be used by either you or the macro, so that solves the problem.  But getting
+   a better SAC is a better solution!
+
+2) SAC2000 does not implement the "previous" option for many commands.  If your
+   SAC fails on these, comment out the offending line in ttsac and uncomment
+   the one labeled "* SAC2000".
+
+3) Some SAC2000 versions do not expand macro variables ($xxx$) on the $RUN
+   command.  If yours does not, change the line with $RUN on it to substitute
+   an explicit value for $macdir$.
+
+4) Undefined symbols while compiling.  If you get a series of messages like
+   these at the end of your compilation ...
+
+   Undefined symbols:
+     "_G77_stat_0", referenced from:
+     _zinquire_ in libsacio.a(zinquire.o)
+
+   this probably means that your Fortran compiler produces a 64 bit mode
+   program and the SAC library is 32 bit.  To use the 64 bit SAC library,
+   use
+
+   libsacio-64.a
+
+   in the Makefile where your SAC library location is specified.
+
+References:
+
+Restivo, A., Helffrich, G. (1999) Teleseismic shear-wave splitting measurement
+in noisy environments, Geophys. J. Int., v.137, 821-830.
+
+Silver, PG, Chan WW (1991).  Shear-wave splitting and subcontinental mantle
+deformation, JGR 96 (B10): 16429-16454.
+
+Wolfe CJ, Silver PG (1998). Seismic anisotropy of oceanic upper mantle: Shear
+wave splitting methodologies and observations, JGR 103 (B1), 749-771.
