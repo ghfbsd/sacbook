@@ -1,0 +1,97 @@
+Tools for receiver function (RF) processing and modelling.
+    G. Helffrich/U. Bristol
+    last updated 27 Feb. 2013
+
+    These require a functioning SAC and i/o library, and the Buland and Kennett
+    tau-P tables and their subroutine interface library.  They also require
+    versions of the Numerical Recipes (NR) routines four1.f and realft.f.
+    Note that NR version 2 of realft.f is required.
+
+    Users are requested to cite (as appropriate):
+       Helffrich, G. Extended-time multi-taper frequency domain
+       cross-correlation receiver function estimation. Bull. Seismo. Soc. Am.,
+       v. 96, 344-347, 2006.
+
+Major components:
+
+mtrf:  SAC macro to run the mtdecon program to estimate receiver functions
+    using the multitaper method of Park and Levin.
+
+mtdecon:  Program invoked by mtrf to do the heavy lifting.
+
+hkplot:  SAC macro to run the hk program for Moho analysis.
+
+hk: Program to do RF Moho analysis using Zhu and Kanamori stacking.
+
+setrfslow:  Utility program to calculate RF slownesses from the event
+    information in the SAC file header and place them in the header for use
+    by the hkplot macro/hk program.
+
+prompt:  SAC macro to do input prompting from the user.
+
+ttimes:  This macro is in the splitting program collection in the associated
+    directory.
+
+To build and test:
+
+1.  Get and install SAC
+
+2.  Modify the Makefile to choose your Fortran compiler and indicate the
+    location of the SAC libraries.  Also download and compile the Buland and
+    Kennett TauP routines and fill in their locations in the Makefile.
+    See http://www1.gly.bris.ac.uk/~george/sac-bugs.html#ttimes for source
+    code download instructions.
+
+3.  Put your personal copies of readft.f and four1.f in this directory along
+    with this source code.  The Makefile will try to link them from your home
+    directory, but this probably won't work for you and you'll need to do it
+    manually.
+
+4.  make
+
+5.  Test mtrf.  Start SAC and open a plotting window (if not automatically
+    done in your startup file).  Then, in SAC, issue the command:
+
+    m mtrf file efam.syn comps r t z phase P
+
+    You should get a display that shows the receiver function.  You should
+    also see the files:
+
+    efam.syn.nrfr
+    efam.syn.nrft
+    efam.syn.nrfz
+
+6.  Test hkplot.
+    Put the slowness into the header of your RF estimates.  In the shell:
+
+    ls efam*nrf[rtz] | setrfslow -set user0 -model ak135
+
+    This says to store slowness calculated using the ak135 model in user0 for
+    each file, in s/deg.
+
+    Now, in SAC, process the one RF (not very many but OK for a test) to make
+    an H-k plot:
+
+    m hkplot pat efam*.nrfr p user0 s/deg
+
+    You should see a color plot on your screen, and a poorly-displayed peak at
+    about kappa=1.65 and H=13 km.
+
+--------------------------------------------------------------------------------
+ 
+  Copyright (c) 2013 by G. Helffrich.
+  All rights reserved.
+ 
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in
+      the documentation and/or other materials provided with the distribution.  
+    * The names of the authors may not be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+  THERE IS NO WARRANTY EXPRESSED OR IMPLIED, NOR LIABILITY FOR DAMAGES ASSUMED,
+  IN PROVIDING THIS SOFTWARE.
+--------------------------------------------------------------------------------
