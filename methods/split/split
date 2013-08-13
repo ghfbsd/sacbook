@@ -1,0 +1,245 @@
+* Split macro takes as parameters a file name prefix and component suffix set.
+* It builds input and runs the splitting measurement program.  The drop 
+* files generated contain info for the plots used to verify the results.
+* Assumes A variable in file header set to begin of measurement interval, F 
+* variable set to end.  If variables not set, then you are prompted.
+* Other parameters:
+*    file xxxx - prefix to file names
+*    comps ce cn cz - three component suffixes, east north vertical components.
+*       File names are thus xxxx.ce xxxx.cn xxxx.cz, OK?
+*    plot yes - make SGF plot file and plot to screen
+*    plot no - plot only to screen
+*    phase xxx - name of phase to measure, just a comment.
+*       Included in log output.
+*    filter ls lp hp hs - filter signal in frequency domain.
+*       ls lp are low stop and pass band frequencies, hs hp are high stop and
+*       pass band frequencies.
+*    filter off for no filtering (default)
+*    option x - Type of measurement, t or e; defaults to t
+*    pick [ yes | maybe ] - If yes, force re-picking of seismogram
+*
+* There is a pause between panels of the results.  If you are viewing them
+* and wish to abort, respond by typing a nonblank response.
+****   NOTE before opening any windows type the following command to get
+*     proper windowing
+*   window 1 x 0.05 0.80 y 0.05 0.74
+* then type 'bd xwindow' or 'bd sunwindow' or 'bd mac'
+****
+*
+* George Helffrich (U. Bristol, formerly Carnegie/DTM) - developed 1992-2005
+*
+* Copyright (c) 2013 by G. Helffrich.
+* All rights reserved.
+*
+* Redistribution and use in source form, with or without
+* modification, is permitted provided that the following conditions are met:
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer:
+* THERE IS NO WARRANTY EXPRESSED OR IMPLIED, NOR LIABILITY FOR DAMAGES ASSUMED,
+* IN PROVIDING THIS SOFTWARE.
+$keys file comps phase plot filter option pick window progdir
+$default phase default
+$default plot no
+$default filter off
+$default option t
+$default pick maybe
+$default window 120
+$default progdir src
+setbb pick $pick
+setbb files ""
+setbb hfiles ""
+do sfx list $comps
+   setbb files APPEND " $file$.$sfx$"
+enddo
+message "%files%"
+
+* Read files to determine component orientations
+rh %files%
+do fn list %files%
+   if &1,filename& eq $fn$
+      setbb temp &1,cmpinc&
+   elseif &2,filename& eq $fn$
+      setbb temp &2,cmpinc&
+   else
+      setbb temp &3,cmpinc&
+   endif
+   if (abs (90 - %temp%)) lt 1
+      setbb hfiles APPEND " $fn$"
+      setbb rt APPEND (substring end end $fn$)
+   else
+      setbb zfile $fn$
+   endif
+enddo
+
+* Phase being measured is taken from KA marker in the file, if present.
+if $phase eq default
+   if UNDEFINED ne &1,ka
+      setbb phase &1,ka
+   else
+      setbb phase SKS
+   endif
+else
+   setbb phase $phase
+endif
+
+* Write a record to the run log only if were're going to plot this record.
+*    The measurement is otherwise deemed unworthy of mention.
+setbb log "&1,kstnm&.split"
+sc touch %log%
+
+* do loop below isn't really a loop, but is used so that the BREAK command
+*   will exit the macro if no markers set during PPK.
+do loopo list once
+   * Write measurment to log file if plotting -- record associated plot
+   if $plot ne no
+      sc echo macro split file $file comps $comps phase %phase option $option filter $filter$ >> %log%
+   endif
+   * See if already picked, pick if necessary
+   if &1,a eq UNDEFINED
+      setbb pick yes                    ;* Skip if already picked
+   endif
+   if %pick% eq yes
+      r %files% ; rmean ; m ttsac phase %phase
+      m prompt "Hit return, then pick arrival time - A begins window, F ends it"
+      if "%prompt%_" ne "_"
+	 break                          ;* Escape if seismogram rejected
+      endif
+      plotpk zero markall on
+      if &1,a eq UNDEFINED
+	 break                          ;* Escape if unable to make a pick
+      endif
+      * Update picks in file header
+      setbb beg &1,a& ; setbb end &1,f&
+      rh %files% ; ch a %beg f %end ka %phase kf _ ; wh %files%
+   endif
+   setbb beg &1,a& end &1,f&
+   setbb split_xlim "(maximum &1,b ( %beg% - $window$)) (minimum &1,e ( %end% + $window$))"
+   * Build input file for splitting measurement program, then invoke it.
+   sc cat /dev/null > ./split.in
+   sc echo "/tmp/&1,kstnm&.log" >> ./split.in
+   sc echo "&1,a& &1,f& %phase%" >> ./split.in
+   if off eq $filter
+      setbb filter "0 0 0 0"
+   else
+      setbb filter "$filter$ 0 0 0 0"
+   endif
+   sc echo "%filter%" >> ./split.in
+   sc $progdir$/shear_grh %files% $option < ./split.in
+   if no ne $plot
+      setbb pause "message 'Generating plot...'"
+      setbb prompt " "
+      if nopause ne $plot
+	 bd more sgf
+      endif
+   else
+      setbb pause "m prompt "
+   endif
+   * Plot results of measurement.  Sequence of confirmation plots may be
+   *    broken out of through a non-empty response at the user prompt.
+   *    do loop below isn't really a loop, but is used so that the BREAK command
+   *    will exit if something other than a return is typed at each prompt.
+   do loop list once
+
+      * Panel 1:  Components rotated to event back-azimuth
+      xlabel "&1,nzyear& &1,nzjday& &1,kztime& &1,evla&N &1,evlo&E &1,evdp&km &1,kstnm& BAZ: &1,baz& DEL: &1,gcarc&" location TOP size medium
+      r %hfiles% ; rotate to &1,baz& reversed ; r more %zfile% ; rmean
+      ylim all; m ttsac xlim %split_xlim%
+      %pause "Rotated components"
+      if "%prompt%_" ne "_"
+	 break                            ;* Escape if non-null response
+      endif
+
+      * Panel 2:  Horizontal components rotated to motion-minimized back-azimuth
+      if off ne $filter
+	 plabel 1 "Filter: $filter$" p 0.8 0.09 size tiny
+      endif
+      r $file$.ro $file$.to $file$.rl $file$.tl ; ch a %beg f %end
+      ylim all; m ttsac xlim %split_xlim%
+      %pause "Original and Linearized polarizations"
+      if "%prompt%_" ne "_"
+	 break                            ;* Escape if non-null response
+      endif
+
+      * Panel 3:  Cut portion of signal used for parameter measurement.
+      *   Overlayed waveforms and particle motion plots.
+      picks off; xlabel off; fileid off; line on increment on list 1 3 fill off
+      rh $file$.xy1
+      setbb id "(substring 3 4 &1,nzyear& )(substring 2 4 (1000 + &1,nzjday&)) (before @( '&1,kzdate&' ) &1,kstnm&"
+      plabel 1 on "%id% angle &1,user0&+/-&1,user1& lag &1,user2&+/-&1,user3&" p 0.2 0.96 size small
+      plabel 2 on "______pol. az &1,user4& df &1,user5& df/samp &1,user6&" below size small
+      * Save measurement values for use in labeling contour plot
+      setbb minaz &1,user0& ; setbb minlag &1,user2&
+      beginframe ; vspace 0.75
+      yvport 0.55 0.90
+      r $file$.scr $file$.sct
+      div (MAXIMUM &1,depmax (ABSOLUTE &1,depmin ) ) (MAXIMUM &2,depmax (ABSOLUTE &2,depmin ) ) 
+      xvport 0.15 0.45; p2
+      r $file$.scr $file$.scl 
+      div (MAXIMUM &1,depmax (ABSOLUTE &1,depmin ) ) (MAXIMUM &2,depmax (ABSOLUTE &2,depmin ) ) 
+      xvport 0.55 0.85; p2
+      vspace 1.0 ; yvport 0.1 0.45
+      r $file$.xy1
+      setbb vmax (MAXIMUM &1,xmaximum &1,ymaximum )
+      setbb vmin (MINIMUM &1,xminimum &1,yminimum )
+      xvport 0.11 0.46; xlim %vmin %vmax ; ylim %vmin %vmax
+      p1
+      xlim off; ylim off
+      r $file$.xy2
+      setbb vmax (MAXIMUM &1,xmaximum &1,ymaximum )
+      setbb vmin (MINIMUM &1,xminimum &1,yminimum )
+      xvport 0.54 0.89; xlim %vmin %vmax ; ylim %vmin %vmax
+      p1
+      xlim off; ylim off; line fill previous
+      endframe
+      %pause "Particle motion"
+      if "%prompt%_" ne "_"
+	 break                            ;* Escape if non-null response
+      endif
+      vspace full; xvport 0.1 0.9; yvport 0.1 0.9
+
+      * Panel 4:  Contour plot.  Notes:  Only known way to get points onto a
+      *      contour plot is via PLOTC command.  Thus, a xxx.pcf file is written
+      *      with the commands to draw a symbol at the proper location.  The
+      *      CONTOUR command will not use an explicit VSPACE setting -- it will
+      *      either set its own aspect ratio or will use the FULL ratio.  Thus,
+      *      if you mix a contour plot and some other plot, you are forced to
+      *      set VSPACE FULL.
+      plabel 1 p 0.25 0.96; plabel 2 below
+      xlabel "Lag @(s@)" loc bottom size small
+      ylabel "Azimuth @(degrees@)" loc left size small
+      xvport 0.25 0.75; yvport 0.1 0.9
+      r $file$.var
+      * Set up contouring parameters
+      zlevels list ( &1,depmin * 1.001 ) 1 1.05 2 3 4 5 10 15 20
+      zlabels on list off 1 off 2 3 4 5 10 15 20
+      zticks on direction down
+      * Generate .pcf file that will put symbol at minimum angle and lag point.
+      setbb yc (( %minaz% + 90.0 ) / 180.0 * 0.8 + 0.1 ) 
+      setbb xc ( %minlag% / &1,xmaximum& * 0.5 + 0.25 )
+      sc cat /dev/null                              > ./split.pcf
+      sc echo "g %xc% %yc%"                        >> ./split.pcf
+      sc echo "l %xc% ( %yc% + 0.01)"              >> ./split.pcf
+      sc echo "l ( %xc% + 0.009 ) ( %yc% + 0.003)" >> ./split.pcf
+      sc echo "l ( %xc% - 0.009 ) ( %yc% + 0.003)" >> ./split.pcf
+      sc echo "l ( %xc% + 0.006 ) ( %yc% - 0.008)" >> ./split.pcf
+      sc echo "l ( %xc% - 0.006 ) ( %yc% - 0.008)" >> ./split.pcf
+      sc echo "Q"                                  >> ./split.pcf
+      * Generate contour plot and overlay with symbol.
+      beginframe
+         grayscale color; contour
+      plotc replay file ./split 
+      endframe
+      %pause "Uncertainty"
+   enddo
+   if no ne $plot$
+      bd previous
+   endif
+enddo
+xvport 0.1 0.9; yvport 0.1 0.9; vspace full
+line on solid increment off; fileid on; picks on
+plabel 1 off; plabel 2 off; xlabel off; ylabel off; symbol off
+unsetbb beg end vmax vmin hfiles zfile log id filter split_xlim
+unsetbb pause phase pick xc yc minaz minlag
+sc /bin/rm -f ./split.in ./split.pcf
+sc /bin/rm -f $file$.ro $file$.to $file$.rl 
+sc /bin/rm -f $file$.tl $file$.scr $file$.sct $file$.scl $file$.xy1 $file$.xy2

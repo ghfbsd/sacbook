@@ -1,0 +1,145 @@
+* SPLITSTACK file xxxx [baz [yes|no]] [name nnnn] [plot pppp] [nolist] [jack]
+*   This macro takes the name of a file with the names of splitting measurement
+*   .var files to stack.  It runs the stacking program and prints out a contour
+*   plot of the stacked measurements.  Optionally, it will plot a back-azimuth
+*   rosette on the stack with the best fast and slow axes indicated, and/or
+*   will annotate figure with a list of file names, S/N and back-az values.
+* Parameters:
+*  plot pppp - if you want to save this plot, use the "plot" keyword and
+*     follow it with the name of a file to save the contour plot in.
+*  name nnnn - if you want to give an explicit name to the station, use the
+*     "name" keyword.
+*  baz [yes|no] - if you want a rose diagram of back-azimuths superimposed
+*     on the plot, use the "baz" keyword.
+*  nolist - to suppress the listing of files making up the stack, use this
+*     keyword.
+*  jack - do jackknife estimate of joint splitting estimate.
+* Auxiliary programs used:
+*  splitstack - stacking program to stack .var files.  Should be in search
+*     path.
+*  splitstack.sh - shell script to annotate contour plot with back-azimuth
+*     information.  Should be in directory given by default value of macdir
+*     macro keyword.
+* Written autumn 2001 by G. Helffrich/U. Bristol
+* Modified 23 Oct. 2004 to not use sachdrinfo, annotate macro features
+*    (GRH/UB)
+* Modified 25 Mar. 2005 to jackknife (GRH/UB)
+*
+* Copyright (c) 2013 by G. Helffrich.
+* All rights reserved.
+*
+* Redistribution and use in source form, with or without
+* modification, is permitted provided that the following conditions are met:
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer:
+* THERE IS NO WARRANTY EXPRESSED OR IMPLIED, NOR LIABILITY FOR DAMAGES ASSUMED,
+* IN PROVIDING THIS SOFTWARE.
+$keys file baz plot name nolist macdir jack
+$default baz yes
+$default plot ephemeral
+$default name header
+$default nolist no
+$default jack no
+$default macdir .
+if $plot$ ne ephemeral
+   setbb plot $plot$
+else
+   setbb plot ./splitstack-temp
+endif
+if _no ne _$jack
+   sc $macdir$/splitstack.sh jack $file$ %plot%
+else
+   sc splstacksac $file$ %plot%
+endif
+rh %plot%
+* Take station name from file header if not explicitly given
+if header eq $name$
+   if UNDEFINED ne &1,kstnm&
+      setbb stnm "&1,kstnm&"
+   else
+      setbb stnm UNKNOWN
+   endif
+else
+   setbb stnm $name$
+endif
+if _no ne _$jack
+   plabel 1 on "Jackknife stack for %stnm%:" p 0.25 0.95 size small
+else
+   plabel 1 on "Stack for %stnm%:" p 0.25 0.95 size small
+endif
+plabel 2 on "angle &1,user4&+/-&1,user3& lag &1,user2&+/-&1,user1& df &1,user5&" below size small
+* Save measurement values for use in labeling contour plot
+setbb minaz &1,user4&
+setbb minlag &1,user2&
+xlabel "Lag @(s@)" loc bottom size small
+ylabel "Azimuth @(degrees@)" loc left size small
+xvport 0.25 0.75
+yvport 0.1 0.9
+* Generate .pcf file that will put symbol at minimum angle and lag point.
+setbb yc (( %minaz + 90.0 ) / 180.0 * 0.8 + 0.1 ) 
+setbb xc ( %minlag / 4.0 * 0.5 + 0.25 )
+* Read file list and get names and number of files.  Put these quantities into
+* a macro file that SAC will read (./split.pcf)
+$RUN sh
+echo setbb SPLTF \"/tmp/split@$@$\" > ./split.pcf
+awk 'BEGIN{print "sc /bin/rm -f @%SPLTF@%"}
+/^[^#*]/{
+   fn=\@$1; fw=substr@(fn,1,length@(fn@)-4@)
+   print "rh",fn
+   print "sc echo",fw,"@&1,user4@& @&1,baz@& >> @%SPLTF@%"
+}' $file$ >> ./split.pcf
+$ENDRUN
+* Read each file and get name, S/N and backaz; write into temp. file
+m ./split.pcf
+sc /bin/rm -f ./split.pcf
+if _no eq _$nolist$
+* Read temp file with name, S/N and backaz and build up .pcf commands for
+* figure annotation.  Annotation is on right-hand side of figure.
+$RUN sh
+cat %SPLTF% |
+awk 'BEGIN{dy=0.03; yloc=0.86+dy; xloc=0.76
+   printf "[vbhl]\nt @%.2f @%.2f\nFile, S/N and back-az\n",xloc,yloc}
+{yloc-=dy; printf "t @%.2f @%.2f\n@%s @%.1f @%.1f\n",xloc,yloc,\@$1,\@$2+0.0,\@$3+0.0}' > ./split.pcf
+$ENDRUN
+else
+sc cat /dev/null > ./split.pcf
+endif
+sc echo "g %xc% %yc%" >> ./split.pcf
+sc echo "l %xc% ( %yc% + 0.01)" >> ./split.pcf
+sc echo "l ( %xc% + 0.009 ) ( %yc% + 0.003)" >> ./split.pcf
+sc echo "l ( %xc% - 0.009 ) ( %yc% + 0.003)" >> ./split.pcf
+sc echo "l ( %xc% + 0.006 ) ( %yc% - 0.008)" >> ./split.pcf
+sc echo "l ( %xc% - 0.006 ) ( %yc% - 0.008)" >> ./split.pcf
+sc echo "Q" >> ./split.pcf
+* Generate contour plot and overlay with symbol.
+* report memory
+beginframe
+   r %plot% ; ch kstnm %stnm%
+*  Set up contouring parameters
+   zlevels list ( &1,depmin * 1.001 ) 1 1.05 2 3 4 5 10 15 20
+   zlabels on list off 1 off 2 3 4 5 10 15 20
+   zticks on direction down
+   if &1,depmax GT 1.0
+      contour
+   endif
+   plotc replay file ./split 
+   if _no ne _$baz$
+*     Run program to get back-azimuth information from header to construct
+*     back-azimuth plot
+      sc $macdir$/splitstack.sh ann &1,user4& &1,user2& > ./split.pcf < %SPLTF%
+      sc echo "Q" >> ./split.pcf
+      plotc replay file ./split 
+   endif
+endframe
+* report memory
+xvport 0.1 0.9
+yvport 0.1 0.9
+plabel 1 off
+plabel 2 off
+xlabel off
+ylabel off
+if $plot$ eq ephemeral
+   sc /bin/rm -f %plot%
+endif
+sc /bin/rm -f ./split.pcf %SPLTF%
+unsetbb xc yc minaz minlag plot SPLTF

@@ -1,0 +1,94 @@
+* SAC macro to mark travel times on a plot.  Assumes that event information and
+* origin time (O) are set up properly in the file header.  Event depth assumed
+* to be in km (not meters).
+*
+*   Macro parameters:
+*     xlim x y - Restrict time limits to [x,y]
+*     tables xxx - Use the xxx travel time tables (otherwise default).
+*     tables taup xxx - Use the xxx travel time tables from the Crotwell TauP
+*        toolkit.
+*     phase X - Display time window in seismogram around phase arrival X.
+*     window n - Display n seconds around the phase arrival.
+*     phases A B C ... - Only mark phases A B C ... in the seismogram; default
+*        is all of them tabulated.
+*     rescale no - All traces displayed at same relative amplitude by default.
+*        If you want to defeat this, use "rescale no"
+*
+* Relies on either the Buland/Kennett ttimes package, which must be an
+*   executable in the search path (called "ttimes"), or the Crotwell et al.
+*   Tau-P Toolkit which must be an executable in the search path (called
+*   taup_time).
+*
+* Originally by Randy Kuehnel, Carnegie/DTM, circa 1991.
+*    ttimes-ified and extended by George Helffrich U. Bristol, 1992.
+*    Updated loads of times 1992-2013.
+*
+* Copyright (c) 2013 by G. Helffrich.
+* All rights reserved.
+*
+* Redistribution and use in source form, with or without
+* modification, is permitted provided that the following conditions are met:
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer:
+* THERE IS NO WARRANTY EXPRESSED OR IMPLIED, NOR LIABILITY FOR DAMAGES ASSUMED,
+* IN PROVIDING THIS SOFTWARE.
+$keys rescale xlim tables phase window phases macdir
+$default rescale on
+$default xlim off
+$default tables default
+$default phase none
+$default window 120
+$default phases all
+$default macdir .
+
+* Build header for seismogram display based on event information or time
+if UNDEFINED eq "&1,kevnm&"
+   setbb info "( &1,nzyear& + ( &1,nzjday& / 1000.0 ) )_(change "_" " " "&1,kstnm&")_&1,gcarc&_&1,az&_&1,baz&_&1,evla&_&1,evlo&_&1,evdp&"
+else
+   setbb info "(change "_" " " "&1,kevnm&")_(change "_" " " "&1,kstnm&")_&1,gcarc&_&1,az&_&1,baz&_&1,evla&_&1,evlo&_&1,evdp&"
+endif
+
+* Set time limits for display
+if off eq "$xlim$"
+   setbb xlim "&1,b& &1,e&"
+else
+   setbb xlim "$xlim$"
+endif
+
+* Build annotation information for display and limits in macro ./ttsac.xlim
+$run $macdir$/ttsac.sh
+&1,evdp&
+&1,gcarc&
+&1,o&
+%xlim%
+%info%
+$phase$
+$window$
+$tables$
+$phases$
+$endrun
+
+* Restrict viewport for display, set up annotation details
+xvp 0.1 0.9;yvp 0.15 0.9
+ticks only left bottom;border off;gt si tiny
+if $rescale EQ "on" 
+   ylim all
+endif
+xlabel 'Seconds' loc bottom
+if none eq $phase
+   xlim $xlim
+else
+   m ./ttsac.xlim
+endif
+
+* Generate plot, then annotate it
+bf;p1;plotc replay file ./ttsac;ef
+
+* Restore changed plot parameters
+ticks on all;border previous;gt si small;xlabel off;cut off;xlim previous
+*SAC2000: ticks on all;border off;gt si small;xlabel off;cut off;xlim off
+if $rescale EQ "on" 
+   ylim off
+endif
+unsetbb info ttsac xlim
+sc /bin/rm -f ./ttsac.pcf ./ttsac.xlim
