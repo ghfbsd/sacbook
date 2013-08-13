@@ -1,0 +1,5 @@
+*  PROMPT  --  Prompt user with message and then get response
+*
+*    Returns:  %prompt -- Response from query - first parameter
+*
+setbb prompt "(reply '$1$:') "

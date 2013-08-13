@@ -1,0 +1,177 @@
+* mtrf calculates receiver functions by multitaper cross-correlation in the
+*    frequency domain.
+*
+* It builds input and runs the receiver function program.
+*
+* Assumes A variable in file header set to begin of measurement interval, F 
+* variable set to end.  If variables not set, then you are prompted.
+* Other parameters:
+*    file xxxx - prefix to file names
+*    comps ce cn cz - three component suffixes, east north vertical components.
+*       File names are thus xxxx.ce xxxx.cn xxxx.cz, OK?
+*    plot yes - make SGF plot file and plot to screen
+*    plot no - plot only to screen (default)
+*    phase xxx - name of phase to measure, just a comment saved in file hdr.
+*    fmax xxx - max frequency to deal with in frequency domain.
+*    pick [ yes | maybe ] - If yes, force re-picking of seismogram even if
+*       A and F are set.
+*    window xxx - window length around arrival for display purposes.
+*
+* G. Helffrich/U. Bristol Jan-Oct. 2005
+*    Updated 8 Aug. 2013
+*
+* Assumes two programs are available in your search path:
+*    mtdecon, sacsetomarker.
+* Assumes macros available in macro search path:
+*    prompt, ttimes
+*
+* There is a pause between panels of the results.  If you are viewing them
+* and wish to abort, respond by typing a nonblank response.
+****   NOTE before opening any windows type the following command to get
+*     proper windowing
+*   window 1 x 0.05 0.80 y 0.05 0.74
+* then type 'bd xwindow' or 'bd sunwindow' or 'bd macwindow'
+****
+* Copyright (c) 2013 by G. Helffrich.
+* All rights reserved.
+*
+* Redistribution and use in source form, with or without
+* modification, is permitted provided that the following conditions are met:
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer:
+* THERE IS NO WARRANTY EXPRESSED OR IMPLIED, NOR LIABILITY FOR DAMAGES ASSUMED,
+* IN PROVIDING THIS SOFTWARE.
+*
+$keys file comps phase plot fmax pick window tables debug
+$default phase default
+$default plot no
+$default fmax 3.0
+$default pick maybe
+$default window 120
+$default tables ak135
+$default debug no
+setbb sta (CONCAT (BEFORE "." "$file$") ".dpar")
+setbb pick $pick
+setbb args ""
+setbb files ""
+setbb hfiles ""
+setbb rt ""
+setbb ok no
+
+* Build file names from prefix and suffix list
+do sfx list $comps
+   setbb files APPEND " $file$.$sfx$"
+enddo
+
+if "$sfx$" eq '(change z Z "$sfx$")'
+* Check for upper/lower case suffixes - upper case
+   setbb rfcns "$file$.NRFR $file$.NRFT $file$.NRFZ"
+   setbb rfiles "$file$.(change Z R $sfx$) $file$.(change Z T $sfx$)"
+else
+* Check for upper/lower case suffixes - lower case
+   setbb rfcns "$file$.nrfr $file$.nrft $file$.nrfz"
+   setbb rfiles "$file$.(change z r $sfx$) $file$.(change z t $sfx$)"
+endif
+message "%files%"
+
+* Read files to determine component orientations
+rh %files%
+do fn list %files%
+   if &1,filename& eq $fn$
+      setbb temp &1,cmpinc&
+   elseif &2,filename& eq $fn$
+      setbb temp &2,cmpinc&
+   else
+      setbb temp &3,cmpinc&
+   endif
+   if (abs (90 - %temp%)) lt 1
+      setbb hfiles APPEND " $fn$"
+      setbb rt APPEND (substring end end $fn$)
+   else
+      setbb zfile $fn$
+   endif
+enddo
+
+* Horizontal component suffixes to lower case for rt checking later
+setbb rt "(change R r (change T t %rt%))"
+if %rt% eq tr
+   setbb rt rt
+endif
+
+* Phase being measured is taken from KA marker in the file, if present.
+if $phase eq default
+   if _UNDEFINED ne _&1,ka
+      setbb phase "&1,ka "
+   else
+      setbb phase P
+   endif
+else
+   setbb phase $phase
+endif
+
+* Pass debug flags to program
+if _no ne "_$debug$"
+   setbb args append " -debug $debug$"
+endif
+
+* do loop below isn't really a loop, but is used so that the BREAK command
+*   will exit if no markers set during PPK.
+do loopo list once
+   if &1,a eq UNDEFINED
+      setbb pick yes
+   endif
+*  Invite user to pick measurement window if not yet set.  If no pick made,
+*  or picking declined, escape DO loop and don't measure.
+   if %pick% eq yes
+      r %files% ; rmean ; m ttsac phase %phase
+      m prompt "Hit return, then pick window - A begins window, F ends it"
+*     Escape loop if no picking wanted after seismogram examined
+      if "%prompt%_" ne "_"
+         break
+      endif
+      plotpk zero markall on
+*     Escape loop if no picks made
+      if &1,a eq UNDEFINED
+         break
+      endif
+      setbb beg &1,a& ; setbb end &1,f&
+      rh %files% ; ch a %beg f %end ka %phase kf _ ; wh %files%
+   endif
+
+*  Rotate horizontal components to radial-tangential frame
+   if %rt% ne rt
+      r %hfiles% ; rmean ; rotate to gcarc reversed ; w %rfiles%
+      message "%hfiles% rewritten as %rfiles%"
+   endif
+
+*  Build input file for measurement program, then invoke it.
+   setbb ofiles "%rfcns%" ; setbb dur (&1,f& - &1,a&)
+   do f list %rfiles% %zfile%
+      setbb rff '(before " " "%ofiles% ")'
+      sc mtdecon -freq $fmax$ %args% -window &1,a &1,f -noise (&1,a& - %dur%) &1,a& -wavelet &1,a& &1,f& %zfile% $f$ %rff%
+      setbb ofiles '(after " " "%ofiles%")'
+   enddo
+
+*  Write measurement parameters to station log file
+   sc echo "$file$ mtd $fmax$" >> %sta%
+
+*  Set phase markers into RF files (helpful only for later processing)
+   if $tables$ ne NONE
+$run awk 'NR==1{phase=@$0} NR>1{for@(i=1;i<=3;i++@) printf "@%s @%s 0.0\n",@$@(i@),phase}' > ./decon.in
+%phase%
+%rfcns%
+$endrun
+      sc sacsetomarker -model $tables$ < ./decon.in
+      sc /bin/rm -f ./decon.in
+   endif
+   if _no ne _$plot
+      bd more sgf
+      setbb ok ok
+   endif
+   r %rfcns% ; p1
+enddo
+if $plot$_no ne $plot$_%ok%
+   bd previous
+endif
+unsetbb hfiles rfiles ofiles zfile log i id filter sta rfcns rff rt ok
+unsetbb prompt phase pick

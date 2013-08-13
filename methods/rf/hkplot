@@ -1,0 +1,57 @@
+* HKPLOT -- Do H-k analysis of a set of receiver functions and display the
+*           result graphically.
+*
+*    Keyword args:
+*       pat xxx - xxx is a shell pattern to match file names for analysis.
+*       vp x - Reference Vp is x
+*       h x y n - Explore H values between x and y with n intervals
+*          (default 5 35 20)
+*       k x y n - Explore kappa values between x and y with n intervals
+*          (default 1.5 2.0 20)
+*       p xxx - xxx is the name of a header variable in the RF files where the
+*          slowness is stored (required for Hk stacking).  An optional unit
+*          may follow; either s/deg or s/km (s/deg assumed).  Output by the
+*          setrfslow program (provided in this collection).  Example:
+*            p user0 s/km - says the slowness is in header variable user0 and
+*            is in units of s/km.
+*       pw n - For stacking, n is the phase weight exponent (otherwise linear)
+*       info - Include this keyword if want list of file names echoed
+*       weight x y z - Stacking weights for Ps (x), PpPs (y), and PsPs (z)
+*          otherwise default values used.
+*
+*    Notes:
+*       dir is a dummy keyword parameter to use to define a directory name
+*       where the hk program resides.  Change appropriately for individual
+*       use after hk program is compiled and installed.
+*
+*    G. Helffrich/U. Bristol
+*       8 Aug. 2013
+$keys dir pat vp h k p pw info weight
+$default vp 5.8
+$default pw none
+$default weight none
+$default info no
+$default h 5 35 20
+$default k 1.5 2.0 20
+$default dir .
+if _$pw$ ne _none
+   setbb arg "-phaseweight $pw$"
+else
+   setbb arg ""
+endif
+if _$info$ ne _no
+   setbb arg append " -info"
+endif
+if _none ne "_$weight$"
+   setbb arg append " -w $weight$"
+endif
+sc to tmp echo /tmp/tmp@$@$
+sc ls $pat$ | $dir$/hk -vp $vp$ -k $k$ -h $h$ %arg% -p $p$ %tmp%
+r %tmp% ; ch kcmpnm "Vp $vp$"
+sc /bin/rm -f %tmp%
+bf
+ylabel "H @(km@)"; xlabel "kappa"; grayscale; xlabel previous; ylabel previous
+zlevels list (&1,depmax& - (&1,user0& / (sqrt 2))) (0.99 * &1,depmax&)
+contour
+ef
+unsetbb tmp arg
