@@ -1,0 +1,5 @@
+This directory contains routines that might not be available in all versions
+of SAC.  If you can't compile SAC/BRIS yourself, you can substitute one of
+these.
+
+rwsac.f -- Native Fortran implementations of RSACH and WSACH.
