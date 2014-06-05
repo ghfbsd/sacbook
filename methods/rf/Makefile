@@ -48,9 +48,9 @@ FFLAGS= ${DEBUG} ${SPECS}
 PFLAGS= ${DEBUG}
 CFLAGS= -g
 
-TPTT= /usr/local/lib/tpttsub.o
 TPTT= /usr/local/lib/tpttsub-64.o
 TPTT= /usr/local/lib/tpttsub-32.o
+TPTT= /usr/local/lib/tpttsub.o
 SACLIB= /usr/local/lib/libg77-sacio.a
 SACLIB= /usr/local/lib/libsacio.a
 
