@@ -1,6 +1,6 @@
 Tools for receiver function (RF) processing and modelling.
     G. Helffrich/U. Bristol
-    last updated 27 Feb. 2013
+    last updated 24 Oct. 2018
 
     These require a functioning SAC and i/o library, and the Buland and Kennett
     tau-P tables and their subroutine interface library.  They also require
