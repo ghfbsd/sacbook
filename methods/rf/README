@@ -52,6 +52,17 @@ To build and test:
 
 4.  make
 
+    If this does not succeed, and fails while making mtdecon, review step 3
+    and make sure that you are using realft.f and four1.f, or realftalt.f as
+    appropriate.  If this fails while making sacsetrfslow, make sure that the
+    Makefile has the correct location of your TauP routines, the correct
+    location of libsacio.a, and that you are using the SAC/BRIS version of
+    libsacio.a rather than SAC2000's libsacio.a.  The routines RSACH and WSACH
+    are missing in SAC2000.  If you want to or need to use the SAC2000
+    libraries, find the code for rwsach.f in the missing-stuff/ directory,
+    compile it, and add it to the files to be linked together to make
+    sacsetrfslow.
+
 5.  Test mtrf.  Start SAC and open a plotting window (if not automatically
     done in your startup file).  Then, in SAC, issue the command:
 
