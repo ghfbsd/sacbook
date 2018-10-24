@@ -7,6 +7,8 @@
 #         See http://www1.gly.bris.ac.uk/~george/sac-bugs.html#ttimes for code
 #  SACLIB = location of the SAC I/O library
 #         Distributed with SAC
+#  RFTO - choice of whether to use Numerical Recipes' realft or substitute
+#         (see below)
 
 FC= gfortran
 
@@ -54,6 +56,12 @@ TPTT= /usr/local/lib/tpttsub.o
 SACLIB= /usr/local/lib/libg77-sacio.a
 SACLIB= /usr/local/lib/libsacio.a
 
+# If you have Numerical Recipes routines realft.f and four1.f, use them.
+# Otherwise, use the replacement realftalt.f.  Make your choice be the last of
+# the two RFTO= lines by copy/paste, or by commenting one of them out.
+RFTO=realftalt.o
+RFTO=realft.o four1.o
+
 all: hk mtdecon sacsetomarker setrfslow
 
 ${OPT}:
@@ -61,6 +69,7 @@ ${OPT}:
 
 realft.o: realft.f
 four1.o: four1.f
+realftalt.o: realftalt.f
 
 hk: hk.o wigint.o gnum.o tokens.o hilbert.o realftalt.o
 	$(FC) ${FFLAGS} -o hk \
@@ -70,8 +79,8 @@ setrfslow: setrfslow.o gcdist.o tokens.o ${SACLIB} ${TPTT}
 	$(FC) ${FFLAGS} -o setrfslow setrfslow.o tokens.o gcdist.o \
 	   ${SACLIB} ${TPTT}
 
-mtdecon: mtdecon.o realft.o four1.o mtaper.o gnum.o tokens.o
-	$(FC) ${FFLAGS} -o mtdecon mtdecon.o realft.o four1.o mtaper.o gnum.o \
+mtdecon: mtdecon.o ${RFTO} mtaper.o gnum.o tokens.o
+	$(FC) ${FFLAGS} -o mtdecon mtdecon.o ${RFTO} mtaper.o gnum.o \
 	   tokens.o ${SACLIB}
 
 sacsetomarker: sacsetomarker.o gnum.o tokens.o gcdist.o

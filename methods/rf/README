@@ -5,7 +5,9 @@ Tools for receiver function (RF) processing and modelling.
     These require a functioning SAC and i/o library, and the Buland and Kennett
     tau-P tables and their subroutine interface library.  They also require
     versions of the Numerical Recipes (NR) routines four1.f and realft.f.
-    Note that NR version 2 of realft.f is required.
+    Note that NR version 2 of realft.f is required.  If you don't have these
+    routines, a substitute is available, but you must modify the Makefile (see
+    step 3 below) to use it.
 
     Users are requested to cite (as appropriate):
        Helffrich, G. Extended-time multi-taper frequency domain
@@ -42,10 +44,11 @@ To build and test:
     See http://www1.gly.bris.ac.uk/~george/sac-bugs.html#ttimes for source
     code download instructions.
 
-3.  Put your personal copies of readft.f and four1.f in this directory along
+3.  Put your personal copies of realft.f and four1.f in this directory along
     with this source code.  The Makefile will try to link them from your home
     directory, but this probably won't work for you and you'll need to do it
-    manually.
+    manually.  If you won't have realft.f and four1.f, edit the Makefile to
+    use the replacement version, realftalt.f
 
 4.  make
 

@@ -8,7 +8,16 @@ C     FFT values are zero for the FFT of a real series, the two imaginary zero
 C     values are omitted and the real values are packed into c(1).
 C
 C     By G. Helffrich/U. Bristol
-C        12 Aug. 2013
+C        12 Aug. 2013, 24 Oct. 2018
+
+      subroutine realft(data,n,isign)
+      dimension data(n)
+      if (isign.eq.1) then
+         call dfftr(data,n,'forward',1.0)
+      else
+         call dfftr(data,n,'inverse',0.5)
+      endif
+      end
 
       subroutine dfftr (x,nft,dirctn,delta)
 c                                              a.shakal, 1/78, 15 jul 80
@@ -73,21 +82,27 @@ c        complex fft, after the forward fft, or before the inverse.
       w = piovrn*float(i/2)
       c3 = cmplx(cos(w),sin(w))*c2
       speci = c1 + csign*c3
-      x(i) = real(speci)/2.
-      x(i+1) = aimag(speci)/2.
+      x(j) = real(speci)/2.
+      x(j+1) = -aimag(speci)/2.
       specj = conjg(c1) + csign*conjg(c3)
-      x(j) = real(specj)/2.
-      x(j+1) = aimag(specj)/2.
+      x(i) = real(specj)/2.
+      x(i+1) = -aimag(specj)/2.
    10 continue
-      x(nftby2+2) = -x(nftby2+2)
+c     x(nftby2/2) = -x(nftby2/2)
       if (forwrd) then
 c            include dt of integration, for forward transform...
+         tmp=x(1)
+	 x(1)=tmp+x(2)
+	 x(2)=tmp-x(2)
          dt = delta
          do i = 1,nft
             x(i) = x(i)*dt
 	 enddo
 c            adjust storage of the nyquist component...
       else
+         tmp=x(1)
+	 x(1)=(tmp+x(2))/2
+	 x(2)=(tmp-x(2))/2
 c            do the inverse transform...
          call fft (x,nftby2,-1)
 c            in the inverse transform, include the df of the integration
@@ -159,27 +174,25 @@ c
 c
 c
       mmax = 2
-    6 if (.not.(mmax .ge. n)) go to 20007
-      return
-20007 if (.not.(mmax .lt. n)) go to 10001
-      istep = 2*mmax
-      pibymx = pi*float(isign)/float(mmax)
+    6 if (n .gt. mmax) then
+         istep = 2*mmax
+         pibymx = pi*float(isign)/float(mmax)
 c
-      do 8 m = 1,mmax,2
-      theta = pibymx*float(m-1)
-      wr = cos(theta)
-      wi = sin(theta)
-      do 8 i = m,n,istep
-      j = i + mmax
-      tempr = wr*data(j) - wi*data(j+1)
-      tempi = wr*data(j+1) + wi*data(j)
-      data(j) = data(i) - tempr
-      data(j+1) = data(i+1) - tempi
-      data(i) = data(i) + tempr
-      data(i+1) = data(i+1) + tempi
-   8  continue
-      mmax = istep
-      go to 6
-10001 continue
-20008 return
+         do 8 m = 1,mmax,2
+         theta = pibymx*float(m-1)
+         wr = cos(theta)
+         wi = sin(theta)
+         do 8 i = m,n,istep
+         j = i + mmax
+         tempr = wr*data(j) - wi*data(j+1)
+         tempi = wr*data(j+1) + wi*data(j)
+         data(j) = data(i) - tempr
+         data(j+1) = data(i+1) - tempi
+         data(i) = data(i) + tempr
+         data(i+1) = data(i+1) + tempi
+   8     continue
+         mmax = istep
+         go to 6
+      endif
+      return
       end
