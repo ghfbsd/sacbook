@@ -65,7 +65,6 @@ c            forward transform..
          call fft (x,nftby2,+1)
          sign = +1.
       else if (invrse) then
-c            adjust nyquist element storage for inverse transform
          sign = -1.
       else
          stop 'dirctn bad to dfftr'
@@ -73,7 +72,7 @@ c            adjust nyquist element storage for inverse transform
 c
 c           manipulate elements as appropropriate for a 1/2 length
 c        complex fft, after the forward fft, or before the inverse.
-20002 piovrn = pi*sign/float(nftby2)
+      piovrn = pi*sign/float(nftby2)
       csign = cmplx(0.,sign)
       do 10 i = 3,nftby2,2
       j = nft-i+2
@@ -88,7 +87,6 @@ c        complex fft, after the forward fft, or before the inverse.
       x(i) = real(specj)/2.
       x(i+1) = -aimag(specj)/2.
    10 continue
-c     x(nftby2/2) = -x(nftby2/2)
       if (forwrd) then
 c            include dt of integration, for forward transform...
          tmp=x(1)
@@ -98,7 +96,6 @@ c            include dt of integration, for forward transform...
          do i = 1,nft
             x(i) = x(i)*dt
 	 enddo
-c            adjust storage of the nyquist component...
       else
          tmp=x(1)
 	 x(1)=(tmp+x(2))/2
